@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-controller"
+version = "0.0.1"
+dependencies = [
+    "fastmcp",
+    "requests>=2.31.0",
+    "mcp>=1.0.0",
+    "uvicorn>=0.32.1",
+    "fast-agent-mcp",
+    "ollama>=0.4.7,<1.0.0",
+    "aiohttp",
+    "eclipse-zenoh==1.5.0",
+]
+description = "A small example package"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.setuptools.package-data]
+app = ["**/*.html"]
