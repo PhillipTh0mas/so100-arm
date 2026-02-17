@@ -1,9 +1,9 @@
-# SO-100 Agent Stack (Controller + LeRobot + Whisper + TTS)
+# SO-100 Agent Stack
 
 ## Demo
 
 <p align="center">
-  <a href="https://app.vidzflow.com/v/7PCM7xIxul">
+  <a href="https://app.vidzflow.com/v/7PCM7xIxul" target="_blank">
     <img src="./assets/demo-thumbnail.png" width="800" alt="Watch Demo">
   </a>
 </p>
@@ -111,7 +111,7 @@ This repo can be run under make87 as a system deployment. The typical workflow i
 ### 1) Pick device and ensure it’s online
 
 ```bash
-m87 device list
+m87 devices list
 ```
 
 ### 2) Deploy with docker-compose on the device
@@ -119,33 +119,24 @@ m87 device list
 From this repo root:
 
 ```bash
-m87 device <DEVICE_NAME> docker compose up -d --build
+m87 <DEVICE_NAME> docker compose up -d --build
 ```
 
 Follow logs:
 
 ```bash
-m87 device <DEVICE_NAME> docker compose logs -f robot-orchestrator
+m87 <DEVICE_NAME> docker compose logs -f robot-orchestrator
 ```
 
 ### 3) Update / redeploy
 
 ```bash
-m87 device <DEVICE_NAME> docker compose build
-m87 device <DEVICE_NAME> docker compose up -d
+m87 <DEVICE_NAME> docker compose build
+m87 <DEVICE_NAME> docker compose up -d
 ```
 
 ### 4) Tear down
 
 ```bash
-m87 device <DEVICE_NAME> docker compose down
-```
-
-Notes:
-
-- `LEROBOT_SERVER_ADDRESS`, `ZENOH_CONNECT_ENDPOINTS`, and `RERUN_URL` should be set in the device environment for the deployment.
-- `lerobot-drive/calibration.json` should be present on the device (or provided as a mounted config file path).
-
-```
-
+m87 <DEVICE_NAME> docker compose down
 ```

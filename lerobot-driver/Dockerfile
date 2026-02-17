@@ -1,26 +1,19 @@
+# ---------- Build ----------
+FROM python:3.12-slim-bookworm AS build
 
-FROM debian:bookworm as base-image
+ARG VIRTUAL_ENV=/opt/venv
+ENV VIRTUAL_ENV=${VIRTUAL_ENV}
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
-ARG VIRTUAL_ENV=/root/venv
-
-RUN apt-get update \
-    && apt-get install --no-install-suggests --no-install-recommends -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    python3-pip \
-    python3 \
-    libpython3-dev \
-    python3-venv \
     git \
-    && python3 -m venv ${VIRTUAL_ENV} \
-    && ${VIRTUAL_ENV}/bin/pip install --upgrade pip setuptools wheel \
-    && apt-get clean \
+    && python -m venv "${VIRTUAL_ENV}" \
+    && pip install --upgrade pip setuptools wheel \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
 COPY . .
-
-RUN ${VIRTUAL_ENV}/bin/python3 -m pip install -U pip
 
 RUN set -eux; \
     if [ -f ./pip.conf ]; then \
@@ -29,14 +22,21 @@ RUN set -eux; \
     else \
     echo "No pip.conf found, using default indexes"; \
     fi; \
-    ${VIRTUAL_ENV}/bin/python3 -m pip install ".[mcp_control]" \
-    && ${VIRTUAL_ENV}/bin/python3 -m pip uninstall torchvision torchaudio torchcodec diffusers rerun-sdk -y  \
-    && ${VIRTUAL_ENV}/bin/python3 -m pip install "rerun-sdk==0.24.1"
+    pip install ".[mcp_control]"; \
+    pip uninstall -y torchvision torchaudio torchcodec diffusers rerun-sdk || true; \
+    pip install "rerun-sdk==0.24.1"
 
-FROM python:3.12-slim-bookworm
+# ---------- Runtime ----------
+FROM python:3.12-slim-bookworm AS runtime
 
-ARG VIRTUAL_ENV=/root/venv
-COPY --from=base-image ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+ARG VIRTUAL_ENV=/opt/venv
+ENV VIRTUAL_ENV=${VIRTUAL_ENV}
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 ENV TELEOP=1
 
-ENTRYPOINT ["/root/venv/bin/python3", "-m", "app.main"]
+WORKDIR /app
+COPY --from=build ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+COPY --from=build /app /app
+COPY config/ /config
+
+ENTRYPOINT ["python3", "-m", "app.main"]

@@ -1,38 +1,47 @@
-FROM debian:bookworm AS base-image
+# ---------- Build stage ----------
+FROM debian:bookworm AS build
 
-ARG VIRTUAL_ENV=/root/venv
+ARG VIRTUAL_ENV=/make87/venv
+ENV VIRTUAL_ENV=${VIRTUAL_ENV}
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
-RUN apt-get update \
-    && apt-get install --no-install-suggests --no-install-recommends -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-venv python3-pip \
     build-essential \
-    python3-pip \
-    python3 \
-    libpython3-dev \
-    python3-venv \
-    git \
-    && python3 -m venv ${VIRTUAL_ENV} \
-    && ${VIRTUAL_ENV}/bin/pip install --upgrade pip setuptools wheel \
-    && apt-get clean \
+    && python3 -m venv "${VIRTUAL_ENV}" \
+    && pip install --upgrade pip setuptools wheel \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# dependency layer (cache-friendly)
+COPY pyproject.toml ./
+# If you have one, also copy: poetry.lock / uv.lock / requirements*.txt
+RUN pip install "pyttsx3>=2.90"
+
+# now install your package
 COPY . .
+RUN pip install .
 
-RUN ${VIRTUAL_ENV}/bin/python3 -m pip install -U pip
+# ---------- Runtime stage ----------
+FROM debian:bookworm-slim AS runtime
 
-RUN set -eux; \
-    if [ -f ./pip.conf ]; then \
-    echo "Found pip.conf, pointing PIP_CONFIG_FILE at it"; \
-    export PIP_CONFIG_FILE="$(pwd)/pip.conf"; \
-    else \
-    echo "No pip.conf found, using default indexes"; \
-    fi; \
-    ${VIRTUAL_ENV}/bin/python3 -m pip install .
+ARG VIRTUAL_ENV=/make87/venv
+ENV VIRTUAL_ENV=${VIRTUAL_ENV}
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+ENV PYTHONPATH=/app
 
-FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    espeak-ng libespeak-ng1 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-ARG VIRTUAL_ENV=/root/venv
-COPY --from=base-image ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+WORKDIR /app
+COPY --from=build ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+COPY --from=build /app /app
 
-ENTRYPOINT ["/root/venv/bin/python3", "-m", "app.main"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 -c "import pyttsx3; pyttsx3.init(); print('ok')" || exit 1
+
+ENTRYPOINT ["python3", "-m", "app.main"]

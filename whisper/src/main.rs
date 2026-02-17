@@ -68,16 +68,16 @@ async fn main() -> Result<()> {
     let audio_in_key = env::var("ZENOH_AUDIO_IN_KEY").unwrap_or("AUDIO_IN".into());
     let text_out_key = env::var("ZENOH_TEXT_OUT_KEY").unwrap_or("TRANSCRIPT_TEXT".into());
 
-    let session = open_zenoh(&connect_endpoints).context("open zenoh")?;
+    let session = open_zenoh(&connect_endpoints).await.context("open zenoh")?;
     let sub = session
         .declare_subscriber(audio_in_key.clone())
-        .with(zenoh::handlers::RingChannel::new(1024))
-        .res()
-        .context("declare subscriber")?;
+        .with(zenoh::handlers::RingChannel::new(16))
+        .await
+        .map_err(|e| anyhow::anyhow!("declare subscriber: {}", e))?;
     let pub_text = session
         .declare_publisher(text_out_key.clone())
-        .res()
-        .context("declare publisher")?;
+        .await
+        .map_err(|e| anyhow::anyhow!("declare publisher: {}", e))?;
 
     // --- worker channel (don’t block subscriber) — pass (samples_i16, input_sr)
     let (tx, mut rx) = mpsc::channel::<(Vec<i16>, usize)>(8);
@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
                 continue;
             }
             println!("Detected: {s}");
-            if let Err(e) = pub_text.put(s.as_bytes()).res().await {
+            if let Err(e) = pub_text.put(s.as_bytes()).await {
                 eprintln!("zenoh publish error: {e:?}");
             }
         }
@@ -201,7 +201,7 @@ async fn main() -> Result<()> {
 fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let d = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-    (d.as_millis() as i64)
+    d.as_millis() as i64
 }
 
 fn parse_zenoh_connect_endpoints(s: &str) -> Result<Vec<String>> {
@@ -246,13 +246,17 @@ fn parse_zenoh_connect_endpoints(s: &str) -> Result<Vec<String>> {
     Ok(out)
 }
 
-fn open_zenoh(connect_endpoints: &[String]) -> Result<zenoh::Session> {
+async fn open_zenoh(connect_endpoints: &[String]) -> Result<zenoh::Session> {
     let mut cfg = zenoh::Config::default();
-    cfg.insert_json5(
-        "connect/endpoints",
-        serde_json::to_string(connect_endpoints)?.as_str(),
-    );
-    Ok(zenoh::open(cfg).res()?)
+    let _ = cfg
+        .insert_json5(
+            "connect/endpoints",
+            serde_json::to_string(connect_endpoints)?.as_str(),
+        )
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+    Ok(zenoh::open(cfg)
+        .await
+        .map_err(|e| anyhow::anyhow!("zenoh open error: {e:?}"))?)
 }
 
 /// Linear resampler to 16 kHz.

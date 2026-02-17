@@ -40,23 +40,30 @@ services:
     restart: unless-stopped
     privileged: true
 
-    devices:
-      - "${CAMERA_DEV:-/dev/null}:${CAMERA_DEV:-/dev/null}"
+    # miount video12 and media1
+    # devices:
+    #   - "/dev/video1:/dev/video1"
+    #   - "/dev/video2:/dev/video2"
+    #   - "/dev/media1:/dev/media1"
+    #   # tty usb0
+    #   - "/dev/ttyUSB0:/dev/ttyUSB0"
 
-    volumes:
-      - ./lerobot-driver/calibration.json:/config/calibration.json:ro
-      - /dev:/dev
-      - /run/udev:/run/udev:ro
+    # volumes:
+    #   # - ./lerobot-driver/config:/config/
+    #   - /dev:/dev
+    #   - /run/udev:/run/udev:ro
 
     environment:
       ZENOH_CONNECT_ENDPOINTS: "robot-orchestrator:7447,whisper:7447,tts:7447"
       CALIBRATION_PATH: "/config/calibration.json"
       LEROBOT_SERVER_ADDRESS: "10.0.0.50:50051"
       MCP_PORT: "9988"
+      TELEOP: "true"
 
       # rerun viewer server ports (if you implemented init_rerun_viewer_server)
       RERUN_GRPC_PORT: "9876"
       RERUN_HTTP_PORT: "9877"
+      CAMERA_1_DEV: "/dev/video1"
 
     ports:
       - "9988:9988"
@@ -88,9 +95,6 @@ services:
       VAD_RMS_TH: "0.010"
       BEST_OF: "1"
 
-    volumes:
-      - ./whisper/models:/models:ro
-
   tts:
     build:
       context: ./tts
@@ -115,8 +119,8 @@ services:
     image: ollama/ollama:latest
     container_name: ollama
     restart: unless-stopped
-    ports:
-      - "11434:11434"
+    # ports:
+    #   - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
 
