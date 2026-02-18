@@ -13,18 +13,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . .
 
+# 1) Copy only files that affect dependency resolution (adjust to your repo)
+COPY pyproject.toml ./
+COPY app/__init__.py ./app/__init__.py
+
+# 2) Install dependencies (this layer stays cached when only code changes)
 RUN set -eux; \
     if [ -f ./pip.conf ]; then \
-    echo "Found pip.conf, pointing PIP_CONFIG_FILE at it"; \
     export PIP_CONFIG_FILE="$(pwd)/pip.conf"; \
-    else \
-    echo "No pip.conf found, using default indexes"; \
     fi; \
     pip install ".[mcp_control]"; \
     pip uninstall -y torchvision torchaudio torchcodec diffusers rerun-sdk || true; \
     pip install "rerun-sdk==0.24.1"
+
+# 3) Now copy the rest of the source (this is what you change often)
+COPY . .
+
+# 4) Install *your* package without re-solving / re-downloading deps
+# (Keeps import paths consistent for `python -m app.main`)
+RUN pip install --no-deps -e .
 
 # ---------- Runtime ----------
 FROM python:3.12-slim-bookworm AS runtime

@@ -1,0 +1,20 @@
+:80 {
+  handle_path /rerun/* {
+    reverse_proxy lerobot-drive:9877
+  }
+
+  # Rerun gRPC-web / HTTP2 calls from the web viewer use service paths like:
+  # /rerun.sdk_comms.v1alpha1.MessageProxyService/ReadMessages
+  handle /rerun.* {
+    reverse_proxy h2c://lerobot-drive:9876
+  }
+
+  # Keep this too (some clients still use /proxy)
+  handle /proxy* {
+    reverse_proxy h2c://lerobot-drive:9876
+  }
+
+  handle {
+    reverse_proxy controller:8080
+  }
+}

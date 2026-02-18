@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
     let session = open_zenoh(&connect_endpoints).await.context("open zenoh")?;
     let sub = session
         .declare_subscriber(audio_in_key.clone())
-        .with(zenoh::handlers::RingChannel::new(16))
+        .with(zenoh::handlers::RingChannel::new(10))
         .await
         .map_err(|e| anyhow::anyhow!("declare subscriber: {}", e))?;
     let pub_text = session

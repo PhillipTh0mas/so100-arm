@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import socket
+import urllib
 from tempfile import NamedTemporaryFile
 from typing import Dict, List, Optional
 
@@ -124,11 +125,37 @@ def create_fast_agent(
         )
 
 
+async def wait_http(url: str, timeout_s: float = 30.0, interval_s: float = 0.5) -> None:
+    deadline = asyncio.get_event_loop().time() + timeout_s
+
+    def _probe() -> int:
+        try:
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=2.0) as resp:
+                return resp.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    while True:
+        try:
+            status = await asyncio.to_thread(_probe)
+            if 200 <= status < 500:
+                return
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
+            pass
+
+        if asyncio.get_event_loop().time() > deadline:
+            raise RuntimeError(f"Timeout waiting for {url}")
+
+        await asyncio.sleep(interval_s)
+
+
 async def run_agent():
     # ==== Env config ====
     model_name = env_str("MODEL_NAME", "generic.qwen3:4b-instruct")
     openai_api_key = env_str("OPENAI_API_KEY", "")
     agent_instruction_topic = env_str("AGENT_INSTRUCTION_TOPIC", "AGENT_INSTRUCTION")
+    agent_response_topic = env_str("AGENT_RESPONSE_TOPIC", "AGENT_RESPONSE")
 
     ollama_url = env_str("OLLAMA_URL", "").strip()
     if not ollama_url:
@@ -153,23 +180,23 @@ async def run_agent():
     # ==== Zenoh session + pub/sub ====
     z = make_zenoh_session(zenoh_connect_endpoints)
     sub = z.declare_subscriber(
-        "AGENT_INSTRUCTION",
+        agent_instruction_topic,
         handler=zenoh.handlers.RingChannel(capacity=100),
     )
-    pub = z.declare_publisher("AGENT_OUTPUT")
+    pub = z.declare_publisher(agent_response_topic)
 
     image_analyzer = ImageAnalyzer(
         ollama_url=ollama_url,
-        model=env_str("IMAGE_MODEL_NAME", "gemma3"),
+        model=env_str("IMAGE_MODEL_NAME", "ministral-3"),
         image_topic=env_str("IMAGE_TOPIC", "IMAGE"),
         mcp_host="0.0.0.0",
-        mcp_port=int(env_str("IMAGE_MCP_PORT", "9988")),
+        mcp_port=int(env_str("IMAGE_MCP_PORT", "9989")),
         pull_model=True,
     )
     image_analyzer.start_background(z=z)
 
     local_image_mcp_url = (
-        f"http://127.0.0.1:{int(env_str('IMAGE_MCP_PORT', '9988'))}/mcp"
+        f"http://127.0.0.1:{int(env_str('IMAGE_MCP_PORT', '9989'))}/mcp"
     )
 
     # Ensure the ollama model exists if using generic.*
@@ -177,9 +204,14 @@ async def run_agent():
     if model_name.startswith("generic."):
         base = model_name.replace("generic.", "")
         logger.info(f"Ensuring model present: {base}")
-        client.pull(model=base, stream=False)
+        for e in client.pull(model=base, stream=True):
+            logger.info(f"Model download: {e}")
         logger.info(f"Model ready: {base}")
+        logger.info("Warming Ollama chat endpoint...")
+        await asyncio.to_thread(warm_ollama_chat, ollama_url, model_name)
+        logger.info("Ollama warm.")
 
+    await wait_http(f"{robot_mcp_base.rstrip('/')}/mcp")
     fast = create_fast_agent(
         openai_key=openai_api_key,
         mcp_urls={
@@ -252,10 +284,18 @@ async def run_agent():
                                 await asyncio.sleep(0.1)
 
                         elif stacked_message:
+
+                            async def send_with_logging(msg: str):
+                                print(f"Sending message: {msg}")
+                                try:
+                                    return await agent.robot_agent.send(msg)
+                                except Exception as e:
+                                    print(f"Error sending message: {e}")
+
                             try:
                                 result = await asyncio.wait_for(
-                                    agent.robot_agent.send(stacked_message),
-                                    timeout=30.0,
+                                    send_with_logging(stacked_message),
+                                    timeout=160.0,
                                 )
 
                                 if result:
@@ -288,6 +328,37 @@ async def run_agent():
             await asyncio.sleep(0.5)
 
     await mcp_agent_loop()
+
+
+def warm_ollama_chat(ollama_url: str, model: str) -> None:
+    # model_name is like "generic.xxx" in your agent config; ollama wants base
+    base = model.replace("generic.", "")
+    if not ollama_url.endswith("/v1"):
+        base_url = ollama_url.rstrip("/") + "/v1"
+    else:
+        base_url = ollama_url.rstrip("/")
+
+    import json as _json
+    import urllib.request
+
+    body = _json.dumps(
+        {
+            "model": base,
+            "messages": [{"role": "user", "content": "hi"}],
+            "max_tokens": 1,
+            "stream": False,
+        }
+    ).encode("utf-8")
+
+    req = urllib.request.Request(
+        base_url + "/chat/completions",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=180) as resp:
+        answ = resp.read()
+        print(answ)
 
 
 if __name__ == "__main__":

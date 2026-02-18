@@ -1,6 +1,7 @@
 import base64
 import enum
 import json
+import logging
 import math
 import random
 import threading
@@ -29,6 +30,8 @@ from mcp.server.fastmcp.utilities.types import Image
 
 from app.so100_autodetect import find_so100_port, get_camera_info
 from app.so100_fpv_follower import SO100FPVFollower
+
+logger = logging.getLogger(__name__)
 
 
 @TeleoperatorConfig.register_subclass("mcp")
@@ -291,6 +294,7 @@ def teleop_loop(
     duration: float | None = None,
     on_new_image: Optional[Callable[[np.ndarray], None]] = None,
 ):
+    logger.info("Starting teleop loop")
     display_len = max(len(key) for key in robot.action_features)
     start = time.perf_counter()
     while True:
@@ -313,7 +317,9 @@ def teleop_loop(
             print(e)
             pass
         dt_s = time.perf_counter() - loop_start
-        busy_wait(1 / fps - dt_s)
+        # busy_wait(1 / fps - dt_s)
+        # actual sleep
+        time.sleep(max(0.1, (1 / fps) - dt_s))
 
         loop_s = time.perf_counter() - loop_start
 
@@ -333,7 +339,7 @@ def teleoperate(
     calibration: Optional[Dict] = None,
     on_new_image: Optional[Callable[[np.ndarray], None]] = None,
 ):
-    port = find_so100_port(index=index)
+    port = find_so100_port()
 
     cameras = dict()
     for name, path in camera_paths.items():
@@ -376,7 +382,7 @@ def teleoperate(
     teleop.connect()
     robot.connect(calibrate=False)
     # just use default
-    cfg = TeleoperateConfig(robot=robot_cfg, teleop=teleop.config)
+    cfg = TeleoperateConfig(robot=robot_cfg, teleop=teleop.config, fps=5)
 
     try:
         teleop_loop(

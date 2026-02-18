@@ -1,16 +1,32 @@
 services:
-  robot-orchestrator:
+  caddy:
+    build:
+      context: .
+      dockerfile: caddy.Dockerfile
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - controller
+      - lerobot-drive
+
+  controller:
     build:
       context: ./controller
       dockerfile: Dockerfile
-    container_name: robot-orchestrator
+    container_name: controller
     restart: unless-stopped
     ports:
       - "8080:8080"
 
     environment:
       WEB_PORT: "8080"
-      RERUN_URL: "http://lerobot-drive:9877/"
+      RERUN_URL: "/rerun/"
 
       # Zenoh peers (service names)
       ZENOH_CONNECT_ENDPOINTS: "lerobot-drive:7447,whisper:7447,tts:7447"
@@ -18,13 +34,18 @@ services:
       # audio bridge topics
       ZENOH_KEY_AUDIO_IN: "AUDIO_IN"
       ZENOH_KEY_AUDIO_OUT: "AUDIO_OUT"
+      AGENT_INSTRUCTION_TOPIC: "AGENT_INSTRUCTION"
+      AGENT_RESPONSE_TOPIC: "AGENT_RESPONSE"
 
       # agent config
       MODEL_NAME: "generic.qwen3:4b-instruct"
+      IMAGE_MODEL_NAME: "qwen3:4b-instruct"
       OPENAI_API_KEY: ""
       OLLAMA_URL: "http://ollama:11434"
+      GENERIC_BASE_URL: "http://ollama:11434/v1"
       ROBOT_MCP_URL: "http://lerobot-drive:9988"
-      IMAGE_DESCRIPTION_MCP_URL: "http://image-description-mcp:9988"
+      IMAGE_MCP_PORT: "9989"
+      GENERIC_API_KEY: "ollama"
 
     depends_on:
       - ollama
@@ -37,24 +58,34 @@ services:
       context: ./lerobot-driver
       dockerfile: Dockerfile
     container_name: lerobot-drive
-    restart: unless-stopped
     privileged: true
+    restart: unless-stopped
 
-    # miount video12 and media1
-    # devices:
-    #   - "/dev/video1:/dev/video1"
-    #   - "/dev/video2:/dev/video2"
-    #   - "/dev/media1:/dev/media1"
-    #   # tty usb0
-    #   - "/dev/ttyUSB0:/dev/ttyUSB0"
+    devices:
+      # SO-100 serial candidates (stable)
+      - "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0:/dev/so100-usb"
+      - "/dev/serial/by-id/usb-1a86_USB_Single_Serial_5970073763-if00:/dev/so100-acm"
+      - "/dev/video1:/dev/video1"
+      - "/dev/video2:/dev/video2"
+      - "/dev/media1:/dev/media1"
 
-    # volumes:
-    #   # - ./lerobot-driver/config:/config/
-    #   - /dev:/dev
-    #   - /run/udev:/run/udev:ro
+      # camera (prefer by-id; replace with your actual entry)
+      # - "/dev/v4l/by-id/<camera-id>:/dev/video1"
+
+      # audio
+      - "/dev/snd:/dev/snd"
+
+    volumes:
+      - /run/udev:/run/udev:ro
+
+    group_add:
+      - "dialout"
+      - "audio"
 
     environment:
-      ZENOH_CONNECT_ENDPOINTS: "robot-orchestrator:7447,whisper:7447,tts:7447"
+      SO100_PORT_CANDIDATES: "/dev/so100-usb,/dev/so100-acm"
+      CAMERA_1_DEV: "/dev/video1"
+      ZENOH_CONNECT_ENDPOINTS: "controller:7447,whisper:7447,tts:7447"
       CALIBRATION_PATH: "/config/calibration.json"
       LEROBOT_SERVER_ADDRESS: "10.0.0.50:50051"
       MCP_PORT: "9988"
@@ -63,7 +94,6 @@ services:
       # rerun viewer server ports (if you implemented init_rerun_viewer_server)
       RERUN_GRPC_PORT: "9876"
       RERUN_HTTP_PORT: "9877"
-      CAMERA_1_DEV: "/dev/video1"
 
     ports:
       - "9988:9988"
@@ -79,9 +109,9 @@ services:
     restart: unless-stopped
 
     environment:
-      ZENOH_CONNECT_ENDPOINTS: "robot-orchestrator:7447,lerobot-drive:7447,tts:7447"
+      ZENOH_CONNECT_ENDPOINTS: "controller:7447,lerobot-drive:7447,tts:7447"
       ZENOH_AUDIO_IN_KEY: "AUDIO_IN"
-      ZENOH_TEXT_OUT_KEY: "TRANSCRIPT_TEXT"
+      ZENOH_TEXT_OUT_KEY: "AGENT_INSTRUCTION"
 
       # browser sends 24kHz int16 PCM
       AUDIO_SR: "24000"
@@ -103,8 +133,8 @@ services:
     restart: unless-stopped
 
     environment:
-      ZENOH_CONNECT_ENDPOINTS: "robot-orchestrator:7447,lerobot-drive:7447,whisper:7447"
-      ZENOH_TTS_TEXT_KEY: "TRANSCRIPT_TEXT"
+      ZENOH_CONNECT_ENDPOINTS: "controller:7447,lerobot-drive:7447,whisper:7447"
+      ZENOH_TTS_TEXT_KEY: "AGENT_RESPONSE"
       ZENOH_TTS_AUDIO_KEY: "AUDIO_OUT"
 
       # match web UI sampleRate
@@ -116,13 +146,19 @@ services:
       # TTS_VOICE: ""
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.16.1
     container_name: ollama
     restart: unless-stopped
     # ports:
     #   - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
 
 volumes:
   ollama_data:
+  caddy_data:
+  caddy_config:

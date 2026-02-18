@@ -1,4 +1,12 @@
-# SO-100 Agent Stack
+# SO-100 Agent
+
+Voice-controlled SO-100 robotic arm testbed.
+
+This project connects a Rust-based Whisper STT pipeline, a simple TTS layer, a Python MCP agent, and a LeRobot MCP teleoperation server to voice-control the SO-100 arm. It serves as a testbed for future demos like custom policies, reinforcement learning loops, and world/action model experiments.
+
+It serves a web UI for controlling the arm via voice with a live rerun preview (see screenshot).
+
+[![UI Preview](./assets/ui-preview.png)
 
 ## Demo
 

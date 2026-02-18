@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Controller</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --bg: #000;
+                --fg: #00ffd5;
+                --dim: rgba(0, 255, 213, 0.2);
+            }
+            body {
+                background: var(--bg);
+                color: var(--fg);
+                font-family: "Orbitron", sans-serif;
+                margin: 0;
+                padding: 0;
+                height: 100vh;
+                overflow: hidden;
+            }
+            #topbar {
+                height: 56px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 16px;
+                border-bottom: 1px solid var(--dim);
+                gap: 12px;
+            }
+            #rightbox {
+                height: 56px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 16px;
+                border-bottom: 1px solid var(--dim);
+                gap: 12px;
+            }
+            #brand {
+                font-weight: 700;
+                letter-spacing: 0.15em;
+                white-space: nowrap;
+            }
+
+            /* RX visualizer */
+            #rxviz {
+                width: 220px;
+                height: 28px;
+                border: 1px solid var(--dim);
+                border-radius: 10px;
+                background: #050505;
+                box-shadow: inset 0 0 12px rgba(0, 255, 213, 0.08);
+                flex: 0 0 auto;
+            }
+
+            #status {
+                flex: 1 1 auto;
+                min-width: 0;
+                opacity: 0.8;
+                font-size: 12px;
+                letter-spacing: 0.08em;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                text-align: center;
+                user-select: none;
+            }
+
+            /* Mic toggle button with icons */
+            #toggle.toggle {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                background: transparent;
+                border: 0px solid var(--fg);
+                color: var(--fg);
+                padding: 10px 12px;
+                font-size: 14px;
+                border-radius: 10px;
+                cursor: pointer;
+                transition:
+                    background 0.2s,
+                    box-shadow 0.2s,
+                    opacity 0.2s;
+                white-space: nowrap;
+            }
+            #toggle.toggle:hover {
+                background: var(--dim);
+                box-shadow: 0 0 10px var(--fg);
+            }
+            #toggle.toggle:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+                box-shadow: none;
+            }
+            #toggle .icon {
+                width: 22px;
+                height: 22px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            #toggle .icon svg {
+                width: 22px;
+                height: 22px;
+                fill: currentColor;
+            }
+            #toggle .dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 999px;
+                background: rgba(255, 60, 60, 0.35);
+                box-shadow: 0 0 0 rgba(255, 60, 60, 0);
+                opacity: 0;
+            }
+            #toggle .label {
+                letter-spacing: 0.08em;
+            }
+
+            #toggle[data-state="off"] .icon.on {
+                display: none;
+            }
+            #toggle[data-state="off"] .icon.off {
+                display: inline-flex;
+            }
+            #toggle[data-state="off"] .dot {
+                opacity: 0;
+            }
+
+            #toggle[data-state="on"] .icon.on {
+                display: inline-flex;
+            }
+            #toggle[data-state="on"] .icon.off {
+                display: none;
+            }
+            #toggle[data-state="on"] .dot {
+                opacity: 1;
+                background: rgb(255, 60, 60);
+                animation: pulse 1.1s ease-in-out infinite;
+            }
+
+            @keyframes pulse {
+                0% {
+                    transform: scale(0.9);
+                    box-shadow: 0 0 0 0 rgba(255, 60, 60, 0.5);
+                }
+                70% {
+                    transform: scale(1.1);
+                    box-shadow: 0 0 0 10px rgba(255, 60, 60, 0);
+                }
+                100% {
+                    transform: scale(0.9);
+                    box-shadow: 0 0 0 0 rgba(255, 60, 60, 0);
+                }
+            }
+
+            #content {
+                height: calc(100vh - 56px);
+            }
+            #viewer {
+                width: 100%;
+                height: 100%;
+                border: 0;
+                background: #050505;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div id="topbar">
+            <div id="brand">SO 100 ARM</div>
+            <div id="status">Idle</div>
+            <div id="rightbox">
+                <canvas
+                    id="rxviz"
+                    width="220"
+                    height="28"
+                    aria-label="Received audio visualizer"
+                ></canvas>
+                <button
+                    id="toggle"
+                    class="toggle"
+                    data-state="off"
+                    aria-pressed="false"
+                    title="Toggle microphone"
+                >
+                    <span class="icon on" aria-hidden="true">
+                        <!-- mic -->
+                        <svg viewBox="0 0 24 24">
+                            <path
+                                d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"
+                            />
+                        </svg>
+                    </span>
+
+                    <span class="icon off" aria-hidden="true">
+                        <!-- mic off -->
+                        <svg viewBox="0 0 24 24">
+                            <path
+                                d="M19 11h-2a5 5 0 0 1-.73 2.58l1.46 1.46A6.96 6.96 0 0 0 19 11Zm-7 3a3 3 0 0 0 3-3V8.41l-6-6V6a3 3 0 0 0 3 3v2.59l1 1V11a3 3 0 0 0 3 3Zm-7-3h2a5 5 0 0 0 6 4.9V17h-2v2.06A7 7 0 0 1 5 11Zm14.59 10L3 4.41 4.41 3 21 19.59 19.59 21Z"
+                            />
+                        </svg>
+                    </span>
+
+                    <span class="dot" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+
+        <div id="content">
+            <iframe id="viewer" src="about:blank"></iframe>
+        </div>
+
+        <script>
+            const sampleRate = 24000;
+            const channelCount = 1;
+
+            let ws;
+            let audioCtx;
+            let micStream;
+            let workletNode;
+            let isRecording = false;
+
+            const toggleBtn = document.getElementById("toggle");
+            const viewer = document.getElementById("viewer");
+            const statusEl = document.getElementById("status");
+
+            function setStatus(text) {
+                statusEl.textContent = text;
+            }
+
+            function setMicState(on) {
+                toggleBtn.dataset.state = on ? "on" : "off";
+                toggleBtn.setAttribute("aria-pressed", on ? "true" : "false");
+            }
+
+            // playback
+            let playbackCursor = 0;
+            let playbackQueue = [];
+            let schedulerRunning = false;
+
+            // outgoing buffering
+            const BUFFER_SIZE = 256 * 6; // 1536 bytes
+            let outgoingBuffer = new Int16Array(BUFFER_SIZE / 2);
+            let outgoingOffset = 0;
+
+            // RX visualizer
+            const rxCanvas = document.getElementById("rxviz");
+            const rxCtx = rxCanvas.getContext("2d");
+
+            let rxLevel = 0; // current displayed level [0..1]
+            let rxTarget = 0; // latest measured level [0..1]
+            let rxLastPacketTs = 0;
+
+            function clamp01(x) {
+                return Math.max(0, Math.min(1, x));
+            }
+
+            function measureLevel(floatBuffer) {
+                let sum = 0;
+                for (let i = 0; i < floatBuffer.length; i++) {
+                    const s = floatBuffer[i];
+                    sum += s * s;
+                }
+                const rms = Math.sqrt(sum / Math.max(1, floatBuffer.length));
+                return clamp01(rms * 3.0);
+            }
+
+            function drawRxBars(level) {
+                const w = rxCanvas.width;
+                const h = rxCanvas.height;
+
+                rxCtx.clearRect(0, 0, w, h);
+
+                rxCtx.fillStyle = "rgba(0,255,213,0.04)";
+                for (let x = 0; x < w; x += 8) rxCtx.fillRect(x, 0, 1, h);
+
+                const bars = 20;
+                const gap = 3;
+                const barW = Math.floor((w - gap * (bars - 1)) / bars);
+                const center = h / 2;
+
+                for (let i = 0; i < bars; i++) {
+                    const t = i / (bars - 1);
+                    const shape = 0.35 + 0.65 * Math.sin(Math.PI * t);
+                    const jitter =
+                        0.85 + 0.3 * Math.sin(performance.now() / 90 + i);
+                    const amp = clamp01(level * shape * jitter);
+
+                    const barH = Math.max(2, amp * (h - 4));
+                    const x = i * (barW + gap);
+                    const y = center - barH / 2;
+
+                    rxCtx.fillStyle = "rgba(0,255,213,0.85)";
+                    rxCtx.fillRect(x, y, barW, barH);
+                }
+
+                const ageMs = performance.now() - rxLastPacketTs;
+                if (ageMs > 250) {
+                    rxCtx.fillStyle = "rgba(0,0,0,0.35)";
+                    rxCtx.fillRect(0, 0, w, h);
+                }
+            }
+
+            function rxVizLoop() {
+                const attack = 0.35;
+                const release = 0.08;
+                const k = rxTarget > rxLevel ? attack : release;
+                rxLevel += (rxTarget - rxLevel) * k;
+
+                drawRxBars(rxLevel);
+                requestAnimationFrame(rxVizLoop);
+            }
+            requestAnimationFrame(rxVizLoop);
+
+            const recorderWorkletUrl = URL.createObjectURL(
+                new Blob(
+                    [
+                        `
+            class RecorderProcessor extends AudioWorkletProcessor {
+              process(inputs) {
+                const input = inputs[0][0];
+                if (input) {
+                  const int16Buffer = new Int16Array(input.length);
+                  for (let i = 0; i < input.length; i++) {
+                    let s = Math.max(-1, Math.min(1, input[i]));
+                    int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                  }
+                  this.port.postMessage(int16Buffer.buffer, [int16Buffer.buffer]);
+                }
+                return true;
+              }
+            }
+            registerProcessor('recorder-processor', RecorderProcessor);
+          `,
+                    ],
+                    { type: "application/javascript" },
+                ),
+            );
+
+            // Prevent iframe reload on every mic toggle:
+            // only set viewer.src once (or if it actually changes).
+            let configLoaded = false;
+            let cachedViewerSrc = null;
+
+            async function loadConfigOnce() {
+                if (configLoaded) return;
+                const res = await fetch("/config.json", { cache: "no-store" });
+                const cfg = await res.json();
+
+                const viewerPath = cfg?.rerun_viewer_path ?? "/rerun/";
+                const proxyPath = cfg?.rerun_grpc_proxy_path ?? "/proxy";
+
+                const rerunGrpcUrl = `rerun+http://${location.host}${proxyPath}`;
+                const nextSrc = `${viewerPath}?url=${encodeURIComponent(rerunGrpcUrl)}`;
+
+                if (cachedViewerSrc !== nextSrc) {
+                    viewer.src = nextSrc;
+                    cachedViewerSrc = nextSrc;
+                }
+
+                configLoaded = true;
+            }
+
+            function scheduleNext() {
+                if (!schedulerRunning) return;
+                if (!playbackQueue.length) {
+                    setTimeout(scheduleNext, 20);
+                    return;
+                }
+
+                const floatBuffer = playbackQueue.shift();
+                const audioBuffer = audioCtx.createBuffer(
+                    channelCount,
+                    floatBuffer.length,
+                    sampleRate,
+                );
+                audioBuffer.copyToChannel(floatBuffer, 0);
+
+                const src = audioCtx.createBufferSource();
+                src.buffer = audioBuffer;
+                src.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+                if (playbackCursor < now + 0.05) playbackCursor = now + 0.05;
+
+                const duration = floatBuffer.length / sampleRate;
+                src.start(playbackCursor);
+                playbackCursor += duration;
+
+                setTimeout(scheduleNext, 10);
+            }
+
+            function waitForWsOpen(socket) {
+                return new Promise((resolve, reject) => {
+                    const t = setTimeout(
+                        () => reject(new Error("WebSocket open timeout")),
+                        4000,
+                    );
+                    socket.onopen = () => {
+                        clearTimeout(t);
+                        resolve();
+                    };
+                    socket.onerror = () => {
+                        clearTimeout(t);
+                        reject(new Error("WebSocket error"));
+                    };
+                });
+            }
+
+            async function startRecording() {
+                if (ws) return;
+
+                toggleBtn.disabled = true;
+                setStatus("Starting…");
+
+                try {
+                    await loadConfigOnce();
+
+                    // If you're serving over plain http on a non-localhost domain,
+                    // getUserMedia will fail. This will surface in the catch below.
+                    audioCtx = new (window.AudioContext ||
+                        window.webkitAudioContext)({
+                        sampleRate,
+                    });
+                    await audioCtx.resume();
+                    playbackCursor = 0;
+
+                    const protocol =
+                        location.protocol === "https:" ? "wss" : "ws";
+                    ws = new WebSocket(`${protocol}://${location.host}/ws`);
+                    ws.binaryType = "arraybuffer";
+
+                    await waitForWsOpen(ws);
+
+                    ws.onmessage = (event) => {
+                        if (!(event.data instanceof ArrayBuffer)) return;
+                        const int16Buffer = new Int16Array(event.data);
+                        const floatBuffer = new Float32Array(
+                            int16Buffer.length,
+                        );
+                        for (let i = 0; i < int16Buffer.length; i++) {
+                            floatBuffer[i] = int16Buffer[i] / 32768;
+                        }
+
+                        rxTarget = measureLevel(floatBuffer);
+                        rxLastPacketTs = performance.now();
+
+                        playbackQueue.push(floatBuffer);
+                        if (!schedulerRunning) {
+                            schedulerRunning = true;
+                            scheduleNext();
+                        }
+                    };
+
+                    ws.onclose = () => {
+                        // If server drops the connection, reflect it.
+                        if (isRecording) {
+                            setStatus("Disconnected");
+                            setMicState(false);
+                            isRecording = false;
+                        }
+                    };
+
+                    micStream = await navigator.mediaDevices.getUserMedia({
+                        audio: { channelCount, sampleRate },
+                    });
+                    const source = audioCtx.createMediaStreamSource(micStream);
+
+                    await audioCtx.audioWorklet.addModule(recorderWorkletUrl);
+                    workletNode = new AudioWorkletNode(
+                        audioCtx,
+                        "recorder-processor",
+                        {
+                            numberOfInputs: 1,
+                            numberOfOutputs: 0,
+                            channelCount,
+                        },
+                    );
+
+                    outgoingOffset = 0;
+
+                    workletNode.port.onmessage = (e) => {
+                        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                        const chunk = new Int16Array(e.data);
+
+                        let i = 0;
+                        while (i < chunk.length) {
+                            const space =
+                                outgoingBuffer.length - outgoingOffset;
+                            const toCopy = Math.min(space, chunk.length - i);
+                            outgoingBuffer.set(
+                                chunk.subarray(i, i + toCopy),
+                                outgoingOffset,
+                            );
+                            outgoingOffset += toCopy;
+                            i += toCopy;
+
+                            if (outgoingOffset === outgoingBuffer.length) {
+                                ws.send(outgoingBuffer.buffer.slice(0));
+                                outgoingOffset = 0;
+                            }
+                        }
+                    };
+
+                    source.connect(workletNode);
+
+                    isRecording = true;
+                    setMicState(true);
+                    setStatus("Mic ON");
+                } catch (err) {
+                    console.error(err);
+
+                    // Clean up partial state
+                    try {
+                        if (workletNode) workletNode.disconnect();
+                    } catch {}
+                    workletNode = null;
+
+                    try {
+                        if (micStream)
+                            micStream.getTracks().forEach((t) => t.stop());
+                    } catch {}
+                    micStream = null;
+
+                    try {
+                        if (ws) ws.close();
+                    } catch {}
+                    ws = null;
+
+                    try {
+                        if (audioCtx) await audioCtx.close();
+                    } catch {}
+                    audioCtx = null;
+
+                    isRecording = false;
+                    setMicState(false);
+
+                    const msg = String(err?.message || err);
+                    if (msg.toLowerCase().includes("getusermedia")) {
+                        setStatus("Mic permission / secure context issue");
+                    } else {
+                        setStatus(msg);
+                    }
+                } finally {
+                    toggleBtn.disabled = false;
+                }
+            }
+
+            function stopRecording() {
+                if (!ws && !micStream && !audioCtx) return;
+
+                setStatus("Stopping…");
+
+                if (
+                    ws &&
+                    outgoingOffset > 0 &&
+                    ws.readyState === WebSocket.OPEN
+                ) {
+                    ws.send(outgoingBuffer.buffer.slice(0, outgoingOffset * 2));
+                    outgoingOffset = 0;
+                }
+
+                if (workletNode) {
+                    try {
+                        workletNode.disconnect();
+                    } catch {}
+                    workletNode = null;
+                }
+
+                if (micStream) {
+                    micStream.getTracks().forEach((t) => t.stop());
+                    micStream = null;
+                }
+
+                if (ws) {
+                    try {
+                        ws.close();
+                    } catch {}
+                    ws = null;
+                }
+
+                if (audioCtx) {
+                    try {
+                        audioCtx.close();
+                    } catch {}
+                    audioCtx = null;
+                }
+
+                playbackCursor = 0;
+                schedulerRunning = false;
+                playbackQueue = [];
+
+                isRecording = false;
+                setMicState(false);
+                setStatus("Mic OFF");
+
+                rxTarget = 0;
+                rxLevel = 0;
+                rxLastPacketTs = 0;
+            }
+
+            toggleBtn.onclick = async () => {
+                if (!isRecording) await startRecording();
+                else stopRecording();
+            };
+
+            // Load viewer once on page load; does not reload on mic toggle.
+            loadConfigOnce().catch((e) => {
+                console.error(e);
+                setStatus("Failed to load config.json");
+            });
+        </script>
+    </body>
+</html>

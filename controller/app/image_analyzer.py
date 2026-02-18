@@ -35,7 +35,9 @@ class ImageAnalyzer:
 
         if pull_model:
             logger.info("Ensuring model present: %s", model)
-            self.client.pull(model=model, stream=False)
+
+            for e in self.client.pull(model=model, stream=True):
+                logger.info(f"Model download: {e}")
 
         server = mcp.server.FastMCP(
             name="image_describer", host=mcp_host, port=mcp_port
@@ -53,6 +55,7 @@ class ImageAnalyzer:
             return self.describe_image(image=img, prompt=prompt)
 
     def describe_image(self, *, image: bytes, prompt: str) -> str:
+        return ""
         resp = self.client.chat(
             model=self.model,
             messages=[

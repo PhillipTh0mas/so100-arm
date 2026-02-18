@@ -116,7 +116,7 @@ def load_calibration() -> Optional[dict]:
       - CALIBRATION_PATH=/config/calibration.json  (recommended)
       - CALIBRATION_JSON='{"shoulder_pan":{...}}'  (fallback)
     """
-    path = env_str("CALIBRATION_PATH", "").strip()
+    path = env_str("CALIBRATION_PATH", "/config/calibration.json").strip()
     if path:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -278,7 +278,7 @@ def run_policy_controlled():
 def run_teleop():
     from app.teleop import teleoperate
 
-    init_rerun_viewer_server()
+    rec = init_rerun_viewer_server()
     zenoh_endpoints = parse_zenoh_connect_endpoints(
         env_str("ZENOH_CONNECT_ENDPOINTS", "")
     )

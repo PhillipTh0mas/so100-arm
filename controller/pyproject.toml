@@ -10,7 +10,7 @@ dependencies = [
     "requests>=2.31.0",
     "mcp>=1.0.0",
     "uvicorn>=0.32.1",
-    "fast-agent-mcp",
+    "fast-agent-mcp<0.4.0",
     "ollama>=0.4.7,<1.0.0",
     "aiohttp",
     "eclipse-zenoh==1.5.0",
@@ -23,4 +23,4 @@ requires-python = ">=3.10,<3.13"
 packages = ["app"]
 
 [tool.setuptools.package-data]
-app = ["**/*.html"]
+app = ["static/**/*"]

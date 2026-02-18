@@ -1,14 +1,19 @@
 import json
 import logging
+import pickle
 import threading
 import time
 from dataclasses import asdict
 from pathlib import Path
 from pprint import pformat
-from typing import Dict, Callable, Optional
+from typing import Callable, Dict, Optional
 
+import grpc
+from lerobot.cameras.opencv import OpenCVCameraConfig
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig  # noqa: F401
-from lerobot.cameras.realsense.configuration_realsense import RealSenseCameraConfig  # noqa: F401
+from lerobot.cameras.realsense.configuration_realsense import (
+    RealSenseCameraConfig,  # noqa: F401
+)
 from lerobot.constants import HF_LEROBOT_CALIBRATION, ROBOTS
 from lerobot.robots import (  # noqa: F401
     Robot,
@@ -18,36 +23,37 @@ from lerobot.robots import (  # noqa: F401
     so100_follower,
     so101_follower,
 )
+from lerobot.robots.so100_follower import SO100FollowerConfig
 from lerobot.scripts.server.configs import RobotClientConfig
 from lerobot.scripts.server.helpers import (
     Action,
     Observation,
 )
-
-from lerobot.cameras.opencv import OpenCVCameraConfig
-from lerobot.robots.so100_follower import SO100FollowerConfig
-
 from lerobot.scripts.server.robot_client import RobotClient
-import pickle
 from lerobot.transport import (
     services_pb2,  # type: ignore
     services_pb2_grpc,  # type: ignore
 )
-import grpc
 
 from app.so100_autodetect import find_so100_port, get_camera_info
 
 
 class CustomRobotClient(RobotClient):
-
-    def __init__(self, config: RobotClientConfig,
-                 on_observation_callback: Callable[[Observation], None],
-                 on_action_callback: Callable[[Dict], None],
-                 calibration: Optional[Dict] = None,
-                 ):
+    def __init__(
+        self,
+        config: RobotClientConfig,
+        on_observation_callback: Callable[[Observation], None],
+        on_action_callback: Callable[[Dict], None],
+        calibration: Optional[Dict] = None,
+    ):
         if calibration:
             calibration_file = (
-                config.robot.calibration_dir if config.robot.calibration_dir else HF_LEROBOT_CALIBRATION / ROBOTS / "so100_follower" / (config.robot.id + ".json")
+                config.robot.calibration_dir
+                if config.robot.calibration_dir
+                else HF_LEROBOT_CALIBRATION
+                / ROBOTS
+                / "so100_follower"
+                / (config.robot.id + ".json")
             )
             calibration_file.parent.mkdir(parents=True, exist_ok=True)
             with calibration_file.open("w") as f:
@@ -106,7 +112,9 @@ class CustomRobotClient(RobotClient):
                     incoming_timesteps = [a.get_timestep() for a in timed_actions]
 
                     first_action_timestep = timed_actions[0].get_timestep()
-                    server_to_client_latency = (receive_time - timed_actions[0].get_timestamp()) * 1000
+                    server_to_client_latency = (
+                        receive_time - timed_actions[0].get_timestamp()
+                    ) * 1000
 
                     self.logger.info(
                         f"Received action chunk for step #{first_action_timestep} | "
@@ -167,12 +175,20 @@ class CustomRobotClient(RobotClient):
 
             """Control loop: (2) Streaming observations to the remote policy server"""
             if self._ready_to_send_observation():
-                _captured_observation = self.control_loop_observation(self.current_task, verbose)
+                _captured_observation = self.control_loop_observation(
+                    self.current_task, verbose
+                )
                 self.on_observation_callback(_captured_observation)
 
-            #self.logger.info(f"Control loop (ms): {(time.perf_counter() - control_loop_start) * 1000:.2f}")
+            # self.logger.info(f"Control loop (ms): {(time.perf_counter() - control_loop_start) * 1000:.2f}")
             # Dynamically adjust sleep time to maintain the desired control frequency
-            time.sleep(max(0, self.config.environment_dt - (time.perf_counter() - control_loop_start)))
+            time.sleep(
+                max(
+                    0,
+                    self.config.environment_dt
+                    - (time.perf_counter() - control_loop_start),
+                )
+            )
 
         return _captured_observation, _performed_action
 
@@ -188,36 +204,36 @@ class CustomRobotClient(RobotClient):
 
     @staticmethod
     def run_robot_client(
-            robot_config: RobotClientConfig,
-            on_observation_callback: Callable[[Observation], None],
-            on_action_callback: Callable[[Dict], None],
-            get_next_task: Callable[[], str],
-            calibration: Optional[Dict] = None,
+        robot_config: RobotClientConfig,
+        on_observation_callback: Callable[[Observation], None],
+        on_action_callback: Callable[[Dict], None],
+        get_next_task: Callable[[], str],
+        calibration: Optional[Dict] = None,
     ):
 
         logging.basicConfig(level=logging.INFO)
-        logging.info("Starting RobotClient with config:\n%s", pformat(asdict(robot_config)))
+        logging.info(
+            "Starting RobotClient with config:\n%s", pformat(asdict(robot_config))
+        )
 
         # 5) Instantiate and start
         client = CustomRobotClient(
             config=robot_config,
             on_observation_callback=on_observation_callback,
             on_action_callback=on_action_callback,
-            calibration=calibration
+            calibration=calibration,
         )
         client.pause_control_loop()
         #  client.policy_config.lerobot_features = {k.replace("observation.images.image", "observation.image"): v for k, v in client.policy_config.lerobot_features.items()}
         if not client.start():
+            logging.error("Failed to start RobotClient!")
             raise RuntimeError("Failed to start RobotClient!")
 
         # 6) Start thread to receive actions
         recv_thread = threading.Thread(target=client.receive_actions, daemon=True)
         recv_thread.start()
 
-        control_loop = threading.Thread(
-            target=client.custom_control_loop,
-            daemon=True
-        )
+        control_loop = threading.Thread(target=client.custom_control_loop, daemon=True)
         control_loop.start()
 
         run = True
@@ -238,16 +254,17 @@ class CustomRobotClient(RobotClient):
 
 
 def get_so100_policy_config(
-        server_address: str,
-        camera_paths: Dict[str, str],
-        task: str = "",
-        index: int = 0,
-        policy_type: str = "smolvla",
-        pretrained_name_or_path: str = "helper2424/smolvla_rtx_movet",
-        policy_device: str = "cpu",
-        actions_per_chunk: int = 10,
+    server_address: str,
+    camera_paths: Dict[str, str],
+    task: str = "",
+    index: int = 0,
+    policy_type: str = "smolvla",
+    pretrained_name_or_path: str = "helper2424/smolvla_rtx_movet",
+    policy_device: str = "cpu",
+    actions_per_chunk: int = 10,
 ) -> "RobotClientConfig":
     from lerobot.scripts.server.configs import RobotClientConfig
+
     # 1) Build the robot & camera config
     port = find_so100_port(index=index)
 
@@ -255,15 +272,10 @@ def get_so100_policy_config(
     for name, path in camera_paths.items():
         w, h, fps = get_camera_info(index_or_path=path)
         cameras[name] = OpenCVCameraConfig(
-            index_or_path=Path(path),
-            width=w, height=h, fps=fps
+            index_or_path=Path(path), width=w, height=h, fps=fps
         )
 
-    robot_cfg = SO100FollowerConfig(
-        port=port,
-        id=f"so100-{index}",
-        cameras=cameras
-    )
+    robot_cfg = SO100FollowerConfig(port=port, id=f"so100-{index}", cameras=cameras)
 
     # 4) Build the full client config
     cfg = RobotClientConfig(

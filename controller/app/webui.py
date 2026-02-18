@@ -1,3 +1,4 @@
+# controller/app/webui.py (or wherever your aiohttp code lives)
 import asyncio
 import json
 import os
@@ -81,10 +82,9 @@ class AudioBridge:
 
     async def _fanout_loop(self):
         while True:
-            sample = self._sub_out.recv()  # blocking call in zenoh, run in thread
+            sample = await asyncio.to_thread(self._sub_out.recv)
             payload = sample.payload.to_bytes()
 
-            # aiohttp websockets want async sends -> bounce into loop thread safely
             dead = []
             for ws in list(self._clients):
                 try:
@@ -125,8 +125,12 @@ def create_app(static_dir: Path) -> web.Application:
     app.on_startup.append(on_startup)
 
     async def config_json(_req: web.Request) -> web.Response:
-        rerun_url = env_str("RERUN_URL", "about:blank")
-        return web.json_response({"rerun_url": rerun_url})
+        return web.json_response(
+            {
+                "rerun_viewer_path": "/rerun/",
+                "rerun_grpc_proxy_path": "/proxy",
+            }
+        )
 
     async def index(_req: web.Request) -> web.FileResponse:
         return web.FileResponse(static_dir / "index.html")
@@ -140,7 +144,7 @@ def create_app(static_dir: Path) -> web.Application:
 
 async def serve_webui() -> None:
     port = int(env_str("WEB_PORT", "8080"))
-    static_dir = Path(__file__).resolve().parent.parent / "static"
+    static_dir = Path(__file__).resolve().parent / "static"
 
     app = create_app(static_dir)
     runner = web.AppRunner(app)
@@ -148,5 +152,4 @@ async def serve_webui() -> None:
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    # keep running
     await asyncio.Event().wait()
