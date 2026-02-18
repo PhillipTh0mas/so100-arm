@@ -62,15 +62,11 @@ services:
     restart: unless-stopped
 
     devices:
-      # SO-100 serial candidates (stable)
       - "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0:/dev/so100-usb"
       - "/dev/serial/by-id/usb-1a86_USB_Single_Serial_5970073763-if00:/dev/so100-acm"
       - "/dev/video1:/dev/video1"
       - "/dev/video2:/dev/video2"
       - "/dev/media1:/dev/media1"
-
-      # camera (prefer by-id; replace with your actual entry)
-      # - "/dev/v4l/by-id/<camera-id>:/dev/video1"
 
       # audio
       - "/dev/snd:/dev/snd"

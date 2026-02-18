@@ -6,7 +6,7 @@ This project connects a Rust-based Whisper STT pipeline, a simple TTS layer, a P
 
 It serves a web UI for controlling the arm via voice with a live rerun preview (see screenshot).
 
-[![UI Preview](./assets/ui-preview.png)
+![UI Preview](./assets/ui-preview.png)
 
 ## Demo
 
@@ -76,38 +76,24 @@ Optional (if enabled in drive):
 - `docker-compose.yml` at repo root
 - `lerobot-drive/calibration.json` (mounted into the drive container)
 
+You need to update the device mounts of `lerobot-drive` to match your actual USB device of the so100-arm as well as the camera. Also update the `CAMERA_1_DEV` to match the camera dev mount you want to use.
+
 ### Start
 
 ```bash
 docker compose build
 docker compose up -d
-docker compose logs -f robot-orchestrator
 ```
 
 ### Open the UI
 
-- Web UI: `http://localhost:8080`
-- It embeds the rerun viewer via `RERUN_URL` (defaults to `http://lerobot-drive:9877/` inside the compose network).
-
-### Optional: enable camera
-
-```bash
-export CAMERA_DEV=/dev/video0
-docker compose up -d --build lerobot-drive
-```
+- Web UI: `http://localhost` (Caddy forwards http port 80) network).
+- if you run via make87 on a remote machien you can forward the port via `m87 <device-name> forward 80`
 
 ### Stop
 
 ```bash
 docker compose down
-```
-
-### Useful debugging
-
-```bash
-docker compose logs -f whisper
-docker compose logs -f tts
-docker compose logs -f lerobot-drive
 ```
 
 ---
@@ -133,7 +119,7 @@ m87 <DEVICE_NAME> docker compose up -d --build
 Follow logs:
 
 ```bash
-m87 <DEVICE_NAME> docker compose logs -f robot-orchestrator
+m87 <DEVICE_NAME> docker compose logs -f
 ```
 
 ### 3) Update / redeploy
