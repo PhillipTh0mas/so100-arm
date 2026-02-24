@@ -9,15 +9,17 @@ dependencies = [
   "lerobot[async,feetech,kinematics]==0.3.3",
   "protobuf>=5.26.0",
   "eclipse-zenoh==1.5.0",
-  "yourdfpy"
+  "yourdfpy",
+  "opencv-python-headless",
+  "opencv-contrib-python-headless",
 ]
 description = "A small example package"
 readme = "README.md"
-requires-python = ">=3.9,<3.13"
+requires-python = ">=3.13.5,<3.14"
 
 [tool.setuptools]
 packages = ["app"]
-package-data = { "app" = ["so101_new_calib.urdf", "assets/*.stl", "assets/*.part"] }
+package-data = { "app" = ["so101_new_calib.urdf", "assets/*.stl", "assets/*.part", "*onnx"] }
 
 [project.optional-dependencies]
 mcp_control = ["mcp"]

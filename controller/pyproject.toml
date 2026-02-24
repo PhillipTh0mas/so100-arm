@@ -8,19 +8,19 @@ version = "0.0.1"
 dependencies = [
     "fastmcp",
     "requests>=2.31.0",
-    "mcp>=1.0.0",
     "uvicorn>=0.32.1",
-    "fast-agent-mcp<0.4.0",
+    "fast-agent-mcp>=0.4.55,<0.5.0",
+    "mcp",
     "ollama>=0.4.7,<1.0.0",
     "aiohttp",
     "eclipse-zenoh==1.5.0",
 ]
 description = "A small example package"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.13.5,<3.14"
 
 [tool.setuptools]
 packages = ["app"]
 
 [tool.setuptools.package-data]
-app = ["static/**/*"]
+app = ["static/**/*", "*.yaml"]

@@ -16,15 +16,18 @@ It serves a web UI for controlling the arm via voice with a live rerun preview (
   </a>
 </p>
 
+## Disclaimers
+
+Im still working on fixing the bug where the models don't call the MCP tools. There was some regression in the latest fast-agent library.
+
 ## Architecture
 
 ```text
 
 ┌──────────────────────────────────────────────────────────┐
-│ ollama/                                                  │
-│ - LLM endpoint                                           │
-│ - VLA for image description                              │
-│   http://ollama:11434                                    │
+│ ollama/ (:11434)                                         │
+│ - LLM for tool calling                                   │
+│ - VLM for image description                              │
 └──────────────────────────────────────────────────────────┘
                           ▲
                           │  HTTP (OpenAI-compat)
@@ -32,20 +35,19 @@ It serves a web UI for controlling the arm via voice with a live rerun preview (
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │ controller/                                                                            │
 │ - Web UI (:8080) + WebSocket /ws                                                       │
-│ - LLM orchestration (Ollama + image-description MCP)                                   │
-│ - Robot control (robot-mcp)                                                            │
+│ - mcp agent                                                                            │
+│ - image-description MCP  (:9989)                                                       │
 │ - Audio bridge (Zenoh mic/speaker)                                                     │
 └─────────┬───────────────────────────┬──────────────────────────────┬───────────────────┘
           │                           │                              │
           │ HTTP (MCP / RERUN)        │ Zenoh                        │ Zenoh
           │                           │                              │
           ▼                           ▼                             ▼
-
 ┌──────────────────────────┐   ┌──────────────────────────┐   ┌──────────────────────────┐
 │ lerobot-drive/           │   │ whisper/                 │   │ tts/                     │
 │ - SO-100 control         │   │ - sub AUDIO_IN           │   │ - sub LLM_OUTPUT_TEXT    │
 │ - MCP server (:9988)     │   │ - pub TRANSCRIPT_TEXT    │   │ - pub AUDIO_OUT          │
-│ - Rerun server (:9877)   │   └──────────────────────────┘   └──────────────────────────┘
+│ - Rerun (:9877 & :9876)  │   └──────────────────────────┘   └──────────────────────────┘
 └──────────────────────────┘
 
 

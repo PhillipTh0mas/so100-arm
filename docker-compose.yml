@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: caddy.Dockerfile
     container_name: caddy
+    init: true
     restart: unless-stopped
     ports:
       - "80:80"
@@ -20,6 +21,7 @@ services:
       context: ./controller
       dockerfile: Dockerfile
     container_name: controller
+    init: true
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -38,9 +40,9 @@ services:
       AGENT_RESPONSE_TOPIC: "AGENT_RESPONSE"
 
       # agent config
-      MODEL_NAME: "generic.qwen3:4b-instruct"
-      IMAGE_MODEL_NAME: "qwen3:4b-instruct"
-      OPENAI_API_KEY: ""
+      MODEL_NAME: "generic.qwen3:4b"
+      IMAGE_MODEL_NAME: "qwen3:4b"
+      OPENAI_API_KEY: "ollama"
       OLLAMA_URL: "http://ollama:11434"
       GENERIC_BASE_URL: "http://ollama:11434/v1"
       ROBOT_MCP_URL: "http://lerobot-drive:9988"
@@ -58,6 +60,7 @@ services:
       context: ./lerobot-driver
       dockerfile: Dockerfile
     container_name: lerobot-drive
+    init: true
     privileged: true
     restart: unless-stopped
 
@@ -102,6 +105,7 @@ services:
       context: ./whisper
       dockerfile: Dockerfile
     container_name: whisper
+    init: true
     restart: unless-stopped
 
     environment:
@@ -126,6 +130,7 @@ services:
       context: ./tts
       dockerfile: Dockerfile
     container_name: tts
+    init: true
     restart: unless-stopped
 
     environment:
@@ -144,12 +149,14 @@ services:
   ollama:
     image: ollama/ollama:0.16.1
     container_name: ollama
+    init: true
     restart: unless-stopped
     # ports:
     #   - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    gpus: all
+    # if you are not using a jetson you can switch this to gpu: all
+    runtime: nvidia
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility

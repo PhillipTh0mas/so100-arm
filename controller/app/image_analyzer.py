@@ -55,7 +55,6 @@ class ImageAnalyzer:
             return self.describe_image(image=img, prompt=prompt)
 
     def describe_image(self, *, image: bytes, prompt: str) -> str:
-        return ""
         resp = self.client.chat(
             model=self.model,
             messages=[

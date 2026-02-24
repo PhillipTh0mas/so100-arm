@@ -1,5 +1,5 @@
 # ---------- Build ----------
-FROM python:3.12-slim-bookworm AS build
+FROM python:3.13-slim-bookworm AS build
 
 ARG VIRTUAL_ENV=/opt/venv
 ENV VIRTUAL_ENV=${VIRTUAL_ENV}
@@ -25,7 +25,7 @@ RUN set -eux; \
     pip install .
 
 # ---------- Runtime ----------
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.13-slim-bookworm AS runtime
 
 ARG VIRTUAL_ENV=/opt/venv
 ENV VIRTUAL_ENV=${VIRTUAL_ENV}

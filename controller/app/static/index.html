@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Controller</title>
+        <title>SO 100 Controller</title>
         <link
             href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
             rel="stylesheet"
@@ -257,6 +257,23 @@
             let rxTarget = 0; // latest measured level [0..1]
             let rxLastPacketTs = 0;
 
+            // output analysis (real playback)
+            let outAnalyser = null;
+            let outTimeData = null;
+
+            function initOutputAnalyser() {
+                if (!audioCtx || outAnalyser) return;
+
+                outAnalyser = audioCtx.createAnalyser();
+                outAnalyser.fftSize = 1024;
+                outAnalyser.smoothingTimeConstant = 0.5;
+
+                outTimeData = new Float32Array(outAnalyser.fftSize);
+
+                // Tap the final output.
+                outAnalyser.connect(audioCtx.destination);
+            }
+
             function clamp01(x) {
                 return Math.max(0, Math.min(1, x));
             }
@@ -268,6 +285,16 @@
                     sum += s * s;
                 }
                 const rms = Math.sqrt(sum / Math.max(1, floatBuffer.length));
+                return clamp01(rms * 3.0);
+            }
+
+            function rmsFromTimeDomain(buf) {
+                let sum = 0;
+                for (let i = 0; i < buf.length; i++) {
+                    const s = buf[i];
+                    sum += s * s;
+                }
+                const rms = Math.sqrt(sum / Math.max(1, buf.length));
                 return clamp01(rms * 3.0);
             }
 
@@ -308,6 +335,13 @@
             }
 
             function rxVizLoop() {
+                // Drive level from actual output signal if available
+                if (outAnalyser && outTimeData) {
+                    outAnalyser.getFloatTimeDomainData(outTimeData);
+                    rxTarget = rmsFromTimeDomain(outTimeData);
+                    rxLastPacketTs = performance.now();
+                }
+
                 const attack = 0.35;
                 const release = 0.08;
                 const k = rxTarget > rxLevel ? attack : release;
@@ -384,7 +418,10 @@
 
                 const src = audioCtx.createBufferSource();
                 src.buffer = audioBuffer;
-                src.connect(audioCtx.destination);
+
+                // Connect to analyser (which then connects to destination)
+                initOutputAnalyser();
+                src.connect(outAnalyser);
 
                 const now = audioCtx.currentTime;
                 if (playbackCursor < now + 0.05) playbackCursor = now + 0.05;
@@ -422,14 +459,17 @@
                 try {
                     await loadConfigOnce();
 
-                    // If you're serving over plain http on a non-localhost domain,
-                    // getUserMedia will fail. This will surface in the catch below.
                     audioCtx = new (window.AudioContext ||
                         window.webkitAudioContext)({
                         sampleRate,
                     });
                     await audioCtx.resume();
                     playbackCursor = 0;
+
+                    // init analyser as soon as context exists
+                    outAnalyser = null;
+                    outTimeData = null;
+                    initOutputAnalyser();
 
                     const protocol =
                         location.protocol === "https:" ? "wss" : "ws";
@@ -448,7 +488,8 @@
                             floatBuffer[i] = int16Buffer[i] / 32768;
                         }
 
-                        rxTarget = measureLevel(floatBuffer);
+                        // Keep lastPacket timestamp for dimming overlay.
+                        // (Level now comes from analyser / real output.)
                         rxLastPacketTs = performance.now();
 
                         playbackQueue.push(floatBuffer);
@@ -459,7 +500,6 @@
                     };
 
                     ws.onclose = () => {
-                        // If server drops the connection, reflect it.
                         if (isRecording) {
                             setStatus("Disconnected");
                             setMicState(false);
@@ -516,7 +556,6 @@
                 } catch (err) {
                     console.error(err);
 
-                    // Clean up partial state
                     try {
                         if (workletNode) workletNode.disconnect();
                     } catch {}
@@ -537,6 +576,9 @@
                         if (audioCtx) await audioCtx.close();
                     } catch {}
                     audioCtx = null;
+
+                    outAnalyser = null;
+                    outTimeData = null;
 
                     isRecording = false;
                     setMicState(false);
@@ -591,6 +633,9 @@
                     } catch {}
                     audioCtx = null;
                 }
+
+                outAnalyser = null;
+                outTimeData = null;
 
                 playbackCursor = 0;
                 schedulerRunning = false;

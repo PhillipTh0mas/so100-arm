@@ -1,0 +1,14 @@
+default_model: generic.qwen3
+
+generic:
+  base_url: ${GENERIC_BASE_URL} # e.g. http://ollama:11434/v1
+  api_key: ${GENERIC_API_KEY} # e.g. ollama
+
+mcp:
+  servers:
+    robot-mcp:
+      transport: http
+      url: ${ROBOT_MCP_URL}/mcp
+    image-description-mcp:
+      transport: http
+      url: http://127.0.0.1:${IMAGE_MCP_PORT}/mcp

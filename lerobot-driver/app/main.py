@@ -292,7 +292,7 @@ def run_teleop():
 
     robot_index = env_int("ROBOT_INDEX", 0)
     calibration = load_calibration()
-    image_change_threshold = env_float("IMAGE_CHANGE_THRESHOLD", 0.05)
+    image_change_threshold = env_float("IMAGE_CHANGE_THRESHOLD", 0.001)
     only_publish_image_on_change = env_bool("ONLY_PUBLISH_IMAGE_ON_CHANGE", True)
 
     cam1_dev = env_str("CAMERA_1_DEV", "").strip()
